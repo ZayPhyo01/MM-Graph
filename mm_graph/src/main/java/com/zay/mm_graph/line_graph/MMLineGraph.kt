@@ -59,8 +59,8 @@ class MMLineGraph(context: Context, attributeSet: AttributeSet) :
         var countY = 0
 
         val endOfy = yMax / yStep
-        stepForYWhenLoop = (height) / (endOfy)
-        val startOfy = height
+        stepForYWhenLoop = (height/2) / (endOfy)
+        val startOfy = height/2
         distanceY = startOfy
         Log.d("stepForLoop", stepForYWhenLoop.toString())
 
