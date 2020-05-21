@@ -1,2 +1,2 @@
 rootProject.name='MM Graph'
-include ':app'
+include ':app' , ':mm_graph'
