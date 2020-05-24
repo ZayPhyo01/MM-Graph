@@ -1,2 +1,3 @@
 rootProject.name='MM Graph'
 include ':app'
+include ':qgraph'
