@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.view.View
 import com.arduia.qgraph.ext.*
 import com.arduia.qgraph.model.LinePoint
+import java.lang.IllegalArgumentException
 
 /**
  * Created by Arduia 24/5/2020 6:23 PM
@@ -50,6 +51,9 @@ class QGraph @JvmOverloads constructor(ctx:Context,
         genFirstLine()
     }
 
+    private val linePath by lazy {
+        Path()
+    }
 
 
     /**
@@ -77,8 +81,14 @@ class QGraph @JvmOverloads constructor(ctx:Context,
             textAlign= Paint.Align.CENTER
 
         } }
-    private val linePaint by lazy { Paint().apply { style = Paint.Style.STROKE; color = Color.BLUE; strokeWidth = px(1.5f)} }
-
+    private val linePaint by lazy { Paint().apply { style = Paint.Style.STROKE; color = Color.BLUE; strokeWidth = px(2.5f)} }
+    private val dotLinePaint by lazy {
+        Paint().apply {
+            style = Paint.Style.STROKE
+            color = Color.BLACK
+            strokeWidth = px(1f)
+        }
+    }
     /**
      * Steps
      */
@@ -121,14 +131,19 @@ class QGraph @JvmOverloads constructor(ctx:Context,
         add(linePoint(0.3f))
         add(linePoint(0.2f))
         add(linePoint(0.4f))
-    }
-
-    private fun genSecondLine() = mutableListOf<LinePoint>().apply {
         add(linePoint(1f))
         add(linePoint(0.3f))
         add(linePoint(0.6f))
         add(linePoint(0.8f))
         add(linePoint(0.1f))
+        add(linePoint(0f))
+    }
+
+    private fun genSecondLine() = mutableListOf<LinePoint>().apply {
+        add(linePoint(1f))
+        add(linePoint(0.3f))
+        add(linePoint(1f))
+        add(linePoint(0.3f))
     }
 
 
@@ -181,7 +196,7 @@ class QGraph @JvmOverloads constructor(ctx:Context,
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
         canvas?.drawXAxis()
-        canvas?.drawYAxis()
+//        canvas?.drawYAxis()
         canvas?.drawXLabels()
         canvas?.drawYLabels()
         canvas?.drawGraphLines()
@@ -191,32 +206,51 @@ class QGraph @JvmOverloads constructor(ctx:Context,
         drawGraphLine(genSecondLine(),color = Color.MAGENTA)
     }
 
-    private fun Canvas.drawGraphLine(lines:List<LinePoint>,color:Int = Color.GREEN){
+    private fun Canvas.drawGraphLine(linePoints:List<LinePoint>, color:Int = Color.GREEN){
 
-        if(lines.isEmpty()) return
-        var oldPoint = lines.first()
+        if(linePoints.isEmpty()) return
 
-        val intervalXWidth = lineCanvasR.width()/lines.size
-        val totalHeight = lineCanvasR.height()
+        val intervalXWidth = lineCanvasR.width()/linePoints.size
+        val height = lineCanvasR.height()
         val bottom = lineCanvasR.bottom
         val left = lineCanvasR.left
 
         linePaint.color = color
 
-        lines.forEachIndexed { i, point ->
+        val firstPoint = linePoints.first()
 
-            if(i>0){
-                val startX =left+( (i-1 ) * intervalXWidth)
-                val startY = bottom - (totalHeight * oldPoint.level)
+        var tmpPoint = firstPoint
 
-                val endX = left+ (i * intervalXWidth)
-                val endY = bottom - (totalHeight * point.level)
+        linePath.reset()
 
-                drawLine(startX,startY,endX,endY,linePaint)
+        linePath.moveTo(left,bottom-(firstPoint.level*height))
+
+        linePoints.forEachIndexed{index, newPoint ->
+
+            if(index>0){
+
+                val xOldPoint = left+((index-1)* intervalXWidth)
+                val yOldPoint = bottom-(tmpPoint.level * height)
+
+                val xNewPoint = left + (index* intervalXWidth)
+                val yNewPoint =  bottom- (newPoint.level * height)
+
+                val cPointX1 = xOldPoint+ ((xNewPoint - xOldPoint ) * 0.25f)
+                val cPointX2 = xOldPoint+ ((xNewPoint - xOldPoint) * 0.75f)
+
+                val cPointY1 = yOldPoint
+                val cPointY2 = yNewPoint
+                linePath.cubicTo(cPointX1,cPointY1,cPointX2,cPointY2,xNewPoint,yNewPoint)
+
+//                linePath.lineTo(xNewPoint,yNewPoint)
             }
-
-            oldPoint = point
+            tmpPoint = newPoint
         }
+
+        val boldPath = Path(linePath)
+
+
+        drawPath(linePath,linePaint)
 
     }
 
@@ -235,15 +269,16 @@ class QGraph @JvmOverloads constructor(ctx:Context,
         }
     }
 
-    private fun Canvas.drawXAxis() = drawLine(lineCanvasR.left,lineCanvasR.bottom,lineCanvasR.left,lineCanvasR.top,axisPaint)
+    private fun Canvas.drawYAxis() = drawLine(lineCanvasR.left,lineCanvasR.bottom,lineCanvasR.left,lineCanvasR.top,axisPaint)
 
-    private fun Canvas.drawYAxis()= drawLine(lineCanvasR.left,lineCanvasR.bottom,lineCanvasR.right,lineCanvasR.bottom,axisPaint)
+    private fun Canvas.drawXAxis()= drawLine(lineCanvasR.left,lineCanvasR.bottom,lineCanvasR.right,lineCanvasR.bottom,axisPaint)
 
     private fun Canvas.drawXLabel(rectF:RectF,text:String){
         val dashTop = rectF.top
         val dashBottom = rectF.top + dashLength
         drawLine(rectF.centerX(),dashTop,rectF.centerX(),dashBottom,axisPaint)
         drawText(text,rectF.centerX(),rectF.centerY(),labelPaint)
+
     }
 
     private fun Canvas.drawYLabel(rectF:RectF,text:String){
@@ -252,8 +287,33 @@ class QGraph @JvmOverloads constructor(ctx:Context,
         val dashEndX = rectF.right
         val dashEndY = rectF.centerY()
 
-        drawLine(dashEndX,dashEndY,dashStartX,dashStartY,axisPaint)
+
+//        drawLine(dashEndX,dashEndY,dashStartX,dashStartY,axisPaint)
         drawText(text,rectF.centerX(),rectF.centerY(),labelPaint)
+        drawPath(genDottedPath(lineCanvasR.left,rectF.centerY(),lineCanvasR.right,rectF.centerY()),dotLinePaint)
     }
 
+    private fun genDottedPath(startX:Float,startY:Float,endX:Float,endY:Float):Path{
+
+        val result = Path()
+        if(startX>endX) throw IllegalArgumentException("start X is to High")
+
+        val dotInterval = px(2f)
+        val numberOfDot = (endX-startX)/dotInterval
+
+        result.moveTo(startX,startY)
+        for( dot in 1..numberOfDot.toInt()){
+
+
+            val xPosition = startX+ (dot * dotInterval)
+            val yPosition = startY
+
+            if(dot%2==0){
+                result.moveTo(xPosition,yPosition)
+                continue
+            }
+            result.lineTo(xPosition,yPosition)
+        }
+         return result
+    }
 }
