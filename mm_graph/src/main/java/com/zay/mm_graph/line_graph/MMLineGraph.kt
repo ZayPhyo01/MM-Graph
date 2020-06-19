@@ -6,6 +6,9 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.View
 import com.zay.mm_graph.BaseMMGraph
+import com.zay.mm_graph.painter.MMLineGraphDrawer
+import com.zay.mm_graph.points.MMPoints
+import com.zay.mm_graph.points.PointsAndColor
 import java.util.*
 import kotlin.collections.ArrayList
 
@@ -20,6 +23,14 @@ class MMLineGraph(context: Context, attributeSet: AttributeSet) :
     var distanceX = 20
     var distanceY = height / 2
     private var lengthOfY = 0
+    private var mmLinePoint = ArrayList<PointsAndColor>()
+
+    private val lineDrawer by lazy { MMLineGraphDrawer() }
+
+    fun addPoint(points: MMPoints, color: Int = Color.GREEN) {
+        mmLinePoint.add(PointsAndColor(points, color))
+
+    }
 
     fun rangeToX(x: Int, step: Int) {
         xMax = x
@@ -28,7 +39,19 @@ class MMLineGraph(context: Context, attributeSet: AttributeSet) :
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        Log.d("onSize change", "change")
+        Log.d("xmax", "$xMax")
+        Log.d("total width ", "${w}")
+        Log.d("sub distant", "${(w - 80) / (xMax / 10)}")
         distanceY = (oldh / 2)
+        lineDrawer.setLineGraphFrame(
+            LineGraphFrame(
+                80f,
+                (h / 2).toFloat(),
+                ((w - 80) / ((xMax / xStep))).toFloat(),
+                ((h / 2) / ((yMax / yStep))).toFloat()
+            )
+        )
     }
 
     fun rangeToY(y: Int, step: Int) {
@@ -41,8 +64,18 @@ class MMLineGraph(context: Context, attributeSet: AttributeSet) :
         textSize = 24f
     }
 
+    val xyLinePaint = Paint().apply {
+        strokeWidth = 4f
+        isAntiAlias = true
+    }
+
     val axisLinePaint = Paint().apply {
         color = Color.GRAY
+    }
+
+    val dottedLinePaint = Paint().apply {
+        color = Color.GRAY
+        strokeWidth = 1f
     }
 
     fun execute() {
@@ -59,12 +92,12 @@ class MMLineGraph(context: Context, attributeSet: AttributeSet) :
         var countY = 0
 
         val endOfy = yMax / yStep
-        stepForYWhenLoop = (height/2) / (endOfy)
-        val startOfy = height/2
+        stepForYWhenLoop = (height / 2) / (endOfy)
+        val startOfy = height / 2
         distanceY = startOfy
-        Log.d("stepForLoop", stepForYWhenLoop.toString())
 
-        while (countY < endOfy) {
+
+        while (countY <= endOfy) {
             Log.d("y", startY.toString())
             canvas?.drawLine(50f, startOfy.toFloat(), 50f, 0f, axisLinePaint)
             canvas?.drawText("$startY ", 20f, distanceY.toFloat(), axisLabelPaint)
@@ -75,15 +108,39 @@ class MMLineGraph(context: Context, attributeSet: AttributeSet) :
 
         var startX = 0
         var countX = 0
-        val endOfx = xMax / xStep
-        stepForXWhenLoop = (width-80) / endOfx
+        val endOfx = (xMax / xStep)
+        stepForXWhenLoop = (width - 80) / endOfx
         var startOfX = 70f
-        while (countX < endOfx) {
-            canvas?.drawLine(50f , startOfy.toFloat() ,width.toFloat() , startOfy.toFloat() , axisLinePaint)
-            canvas?.drawText("$startX" ,startOfX , (20+startOfy).toFloat() ,axisLabelPaint)
-            countX ++
+        while (countX <= endOfx) {
+            canvas?.drawLine(
+                50f,
+                startOfy.toFloat(),
+                width.toFloat(),
+                startOfy.toFloat(),
+                axisLinePaint
+            )
+            canvas?.drawText("$startX", startOfX, (20 + startOfy).toFloat(), axisLabelPaint)
+            countX++
             startX += xStep
             startOfX += stepForXWhenLoop
         }
+
+        canvas?.drawXYPoints()
+        canvas?.drawDotttedPoint()
+
+    }
+
+    private fun Canvas.drawXYPoints() {
+        mmLinePoint.forEach { pointAndColor ->
+            lineDrawer.paintLinePoints(this, pointAndColor.listOfMMPoints, xyLinePaint.apply {
+                color = pointAndColor.color
+            }, xStep, yStep)
+            Log.d("points", "${pointAndColor.listOfMMPoints.listOfPoints}")
+
+        }
+    }
+
+    private fun Canvas.drawDotttedPoint() {
+        lineDrawer.paintDottedPoints(this, yStep, dottedLinePaint)
     }
 }
